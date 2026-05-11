@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Artsy Places — World Art Gallery Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #F5F0E8;
+    --dark: #1A1410;
+    --accent: #C4622D;
+    --accent2: #7B9E6B;
+    --muted: #8A7E6E;
+    --card-bg: #FDFAF4;
+    --border: #E8E0D0;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--dark);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    background: var(--dark);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 1000;
+    flex-shrink: 0;
+  }
+
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    color: var(--cream);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .logo span { color: var(--accent); }
+
+  .search-wrap {
+    flex: 1;
+    max-width: 400px;
+    position: relative;
+  }
+
+  .search-wrap input {
+    width: 100%;
+    padding: 9px 16px 9px 38px;
+    border-radius: 8px;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+  }
+
+  .search-wrap input::placeholder { color: rgba(255,255,255,0.4); }
+  .search-wrap input:focus { background: rgba(255,255,255,0.15); }
+
+  .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255,255,255,0.4);
+    font-size: 15px;
+    pointer-events: none;
+  }
+
+  .filter-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: transparent;
+    color: rgba(255,255,255,0.6);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+
+  .filter-btn:hover, .filter-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  #map {
+    flex: 1;
+    z-index: 1;
+  }
+
+  .sidebar {
+    width: 320px;
+    background: var(--card-bg);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .sidebar-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sidebar-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px;
+    color: var(--dark);
+  }
+
+  .count-badge {
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+
+  .gallery-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .gallery-list::-webkit-scrollbar { width: 4px; }
+  .gallery-list::-webkit-scrollbar-track { background: transparent; }
+  .gallery-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .gallery-card {
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .gallery-card:hover { border-color: var(--accent); transform: translateX(2px); }
+  .gallery-card.active { border-color: var(--accent); background: #FFF8F4; }
+
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .card-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--dark);
+    line-height: 1.4;
+  }
+
+  .region-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-weight: 500;
+  }
+
+  .badge-india { background: #FFF0E8; color: #C4622D; }
+  .badge-europe { background: #E8F0FF; color: #3060C0; }
+  .badge-americas { background: #F0FFE8; color: #3A7A20; }
+  .badge-asia { background: #FFF8E0; color: #A06010; }
+  .badge-middleeast { background: #F8E8FF; color: #7040B0; }
+  .badge-africa { background: #E8FFF0; color: #207050; }
+
+  .card-city {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .btn-directions {
+    flex: 1;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: background 0.2s;
+  }
+
+  .btn-directions:hover { background: #A84F22; }
+
+  .btn-locate {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-locate:hover { border-color: var(--accent); color: var(--accent); }
+
+  .detail-panel {
+    display: none;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+    background: #fff;
+  }
+
+  .detail-panel.visible { display: block; }
+
+  .detail-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+
+  .detail-city {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .detail-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: var(--dark);
+  }
+
+  .detail-row .icon { color: var(--accent); font-size: 15px; width: 18px; }
+
+  .btn-big-directions {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 12px;
+    transition: background 0.2s;
+  }
+
+  .btn-big-directions:hover { background: #A84F22; }
+
+  .btn-close-detail {
+    float: right;
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    margin-top: -2px;
+  }
+
+  .directions-panel {
+    display: none;
+    padding: 14px 16px;
+    border-top: 1px solid var(--border);
+    background: #F8F4EE;
+  }
+
+  .directions-panel.visible { display: block; }
+
+  .dir-title {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .dir-options {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .dir-mode {
+    flex: 1;
+    padding: 7px 4px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+  }
+
+  .dir-mode.active { background: var(--dark); color: #fff; border-color: var(--dark); }
+
+  .dir-input {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    background: #fff;
+    outline: none;
+    margin-bottom: 8px;
+  }
+
+  .dir-input:focus { border-color: var(--accent); }
+
+  .btn-go {
+    width: 100%;
+    padding: 9px;
+    border-radius: 6px;
+    border: none;
+    background: var(--dark);
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .btn-go:hover { background: #2E2820; }
+
+  .routing-line { }
+
+  .no-results {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .no-results .big { font-size: 32px; margin-bottom: 8px; }
+
+  .user-dot {
+    width: 14px;
+    height: 14px;
+    background: #3B82F6;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.3);
+  }
+
+  @media (max-width: 640px) {
+    .sidebar { width: 100%; height: 40vh; border-left: none; border-top: 1px solid var(--border); }
+    .main { flex-direction: column; }
+    .filter-row { display: none; }
+    #map { flex: 1; min-height: 60vh; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Artsy <span>Places</span></div>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="Search galleries, cities..." oninput="filterGalleries()">
+  </div>
+  <div class="filter-row">
+    <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+    <button class="filter-btn" onclick="setFilter('India', this)">India</button>
+    <button class="filter-btn" onclick="setFilter('Europe', this)">Europe</button>
+    <button class="filter-btn" onclick="setFilter('Americas', this)">Americas</button>
+    <button class="filter-btn" onclick="setFilter('Asia Pacific', this)">Asia Pacific</button>
+    <button class="filter-btn" onclick="setFilter('Middle East', this)">Middle East</button>
+    <button class="filter-btn" onclick="setFilter('Africa', this)">Africa</button>
+  </div>
+</header>
+
+<div class="main">
+  <div id="map"></div>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Art Galleries</span>
+      <span class="count-badge" id="countBadge">0</span>
+    </div>
+    <div class="gallery-list" id="galleryList"></div>
+    <div class="detail-panel" id="detailPanel">
+      <button class="btn-close-detail" onclick="closeDetail()">✕</button>
+      <div class="detail-name" id="detailName"></div>
+      <div class="detail-city" id="detailCity"></div>
+      <div class="detail-row"><span class="icon">📍</span><span id="detailAddress"></span></div>
+      <div class="detail-row"><span class="icon">🌍</span><span id="detailRegion"></span></div>
+      <button class="btn-big-directions" onclick="showDirections()">Get directions</button>
+    </div>
+    <div class="directions-panel" id="directionsPanel">
+      <div class="dir-title">
+        <span>Directions</span>
+        <button onclick="closeDirections()" style="background:none;border:none;cursor:pointer;color:var(--muted)">✕</button>
+      </div>
+      <div class="dir-options">
+        <button class="dir-mode active" onclick="setMode('driving', this)">🚗 Drive</button>
+        <button class="dir-mode" onclick="setMode('walking', this)">🚶 Walk</button>
+        <button class="dir-mode" onclick="setMode('cycling', this)">🚴 Cycle</button>
+      </div>
+      <input class="dir-input" id="fromInput" placeholder="Your location (or use current)" value="">
+      <button class="btn-go" onclick="getDirections()">Show route on map</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const galleries = [
+  { name:"National Gallery of Modern Art", city:"New Delhi", country:"India", region:"India", lat:28.6101, lng:77.2344, address:"Jaipur House, India Gate, New Delhi" },
+  { name:"DAG Delhi Art Gallery", city:"New Delhi", country:"India", region:"India", lat:28.6181, lng:77.2191, address:"22A Janpath Rd, New Delhi" },
+  { name:"Dhoomimal Art Centre", city:"New Delhi", country:"India", region:"India", lat:28.6327, lng:77.2178, address:"A-8, Connaught Place, New Delhi" },
+  { name:"Art Heritage Gallery", city:"New Delhi", country:"India", region:"India", lat:28.6274, lng:77.2324, address:"205, Tansen Marg, Mandi House, New Delhi" },
+  { name:"Creativity Art Gallery", city:"New Delhi", country:"India", region:"India", lat:28.5545, lng:77.1949, address:"6, Hauz Khas Fort Rd, New Delhi" },
+  { name:"Kiran Nadar Museum of Art", city:"New Delhi", country:"India", region:"India", lat:28.5285, lng:77.2204, address:"145 DLF South Court Mall, Saket, New Delhi" },
+  { name:"National Crafts Museum", city:"New Delhi", country:"India", region:"India", lat:28.6136, lng:77.2424, address:"Bhairon Marg, Pragati Maidan, New Delhi" },
+  { name:"Nature Morte", city:"New Delhi", country:"India", region:"India", lat:28.5600, lng:77.1900, address:"A-1, Neeti Bagh, New Delhi" },
+  { name:"Vadehra Art Gallery", city:"New Delhi", country:"India", region:"India", lat:28.5710, lng:77.2330, address:"D-40, Defence Colony, New Delhi" },
+  { name:"Exhibit 320", city:"New Delhi", country:"India", region:"India", lat:28.5205, lng:77.1898, address:"F-320, Lado Sarai, New Delhi" },
+  { name:"Gallery Espace", city:"New Delhi", country:"India", region:"India", lat:28.5620, lng:77.2760, address:"16, New Friends Colony, New Delhi" },
+  { name:"KHOJ International Artists Association", city:"New Delhi", country:"India", region:"India", lat:28.5335, lng:77.2098, address:"S-17, Khirkee Extension, New Delhi" },
+  { name:"Lodhi Art District", city:"New Delhi", country:"India", region:"India", lat:28.5921, lng:77.2286, address:"Lodhi Colony, New Delhi" },
+  { name:"Lalit Kala Akademi", city:"New Delhi", country:"India", region:"India", lat:28.6275, lng:77.2337, address:"35, Ferozeshah Rd, Mandi House, New Delhi" },
+  { name:"Bikaner House Art Space", city:"New Delhi", country:"India", region:"India", lat:28.6118, lng:77.2318, address:"Pandara Rd, India Gate, New Delhi" },
+  { name:"ART LIFE Gallery", city:"Noida", country:"India", region:"India", lat:28.5542, lng:77.3353, address:"C-97, Sector 44, Noida" },
+  { name:"Gallerie Splash", city:"Gurgaon", country:"India", region:"India", lat:28.4381, lng:77.1029, address:"Golf Course Rd, Sector 53, Gurgaon" },
+  { name:"ARTisya Art Gallery", city:"Gurgaon", country:"India", region:"India", lat:28.4778, lng:77.0732, address:"The Plaza Mall, Sushant Lok, Gurgaon" },
+  { name:"The Art Lounge", city:"Gurgaon", country:"India", region:"India", lat:28.4144, lng:77.0650, address:"Nirvana Courtyard, Sector 50, Gurgaon" },
+  { name:"Jehangir Art Gallery", city:"Mumbai", country:"India", region:"India", lat:18.9267, lng:72.8316, address:"161B MG Road, Kala Ghoda, Mumbai" },
+  { name:"Chhatrapati Shivaji Maharaj Vastu Sangrahalaya", city:"Mumbai", country:"India", region:"India", lat:18.9268, lng:72.8330, address:"159-161 MG Road, Fort, Mumbai" },
+  { name:"National Gallery of Modern Art Mumbai", city:"Mumbai", country:"India", region:"India", lat:18.9249, lng:72.8322, address:"Sir Cowasji Jehangir Hall, MG Road, Mumbai" },
+  { name:"Salar Jung Museum", city:"Hyderabad", country:"India", region:"India", lat:17.3714, lng:78.4804, address:"Salar Jung Rd, Darulshifa, Hyderabad" },
+  { name:"Indian Museum Kolkata", city:"Kolkata", country:"India", region:"India", lat:22.5583, lng:88.3500, address:"27 Jawaharlal Nehru Rd, Kolkata" },
+  { name:"The Louvre", city:"Paris", country:"France", region:"Europe", lat:48.8606, lng:2.3376, address:"Rue de Rivoli, 75001 Paris" },
+  { name:"Musée d'Orsay", city:"Paris", country:"France", region:"Europe", lat:48.8600, lng:2.3266, address:"1 Rue de la Légion d'Honneur, Paris" },
+  { name:"Centre Pompidou", city:"Paris", country:"France", region:"Europe", lat:48.8606, lng:2.3522, address:"Place Georges-Pompidou, 75004 Paris" },
+  { name:"Fondation Louis Vuitton", city:"Paris", country:"France", region:"Europe", lat:48.8796, lng:2.2537, address:"8 Av. du Mahatma Gandhi, Paris" },
+  { name:"Musée de l'Orangerie", city:"Paris", country:"France", region:"Europe", lat:48.8638, lng:2.3224, address:"Jardin des Tuileries, Paris" },
+  { name:"Tate Modern", city:"London", country:"United Kingdom", region:"Europe", lat:51.5076, lng:-0.0994, address:"Bankside, London SE1 9TG" },
+  { name:"National Gallery London", city:"London", country:"United Kingdom", region:"Europe", lat:51.5089, lng:-0.1283, address:"Trafalgar Square, London" },
+  { name:"Victoria and Albert Museum", city:"London", country:"United Kingdom", region:"Europe", lat:51.4966, lng:-0.1722, address:"Cromwell Rd, London SW7 2RL" },
+  { name:"British Museum", city:"London", country:"United Kingdom", region:"Europe", lat:51.5194, lng:-0.1270, address:"Great Russell St, London WC1B 3DG" },
+  { name:"Saatchi Gallery", city:"London", country:"United Kingdom", region:"Europe", lat:51.4921, lng:-0.1596, address:"Duke of York HQ, King's Rd, London" },
+  { name:"Uffizi Gallery", city:"Florence", country:"Italy", region:"Europe", lat:43.7677, lng:11.2553, address:"Piazzale degli Uffizi 6, Florence" },
+  { name:"Vatican Museums", city:"Rome", country:"Italy", region:"Europe", lat:41.9065, lng:12.4536, address:"Viale Vaticano, 00165 Rome" },
+  { name:"Borghese Gallery", city:"Rome", country:"Italy", region:"Europe", lat:41.9143, lng:12.4922, address:"Piazzale Scipione Borghese 5, Rome" },
+  { name:"Museo del Prado", city:"Madrid", country:"Spain", region:"Europe", lat:40.4138, lng:-3.6921, address:"C. de Ruiz de Alarcón 23, Madrid" },
+  { name:"Museo Reina Sofia", city:"Madrid", country:"Spain", region:"Europe", lat:40.4080, lng:-3.6944, address:"C. de Santa Isabel 52, Madrid" },
+  { name:"Guggenheim Bilbao", city:"Bilbao", country:"Spain", region:"Europe", lat:43.2688, lng:-2.9339, address:"Abandoibarra Etorb. 2, Bilbao" },
+  { name:"Rijksmuseum", city:"Amsterdam", country:"Netherlands", region:"Europe", lat:52.3600, lng:4.8852, address:"Museumstraat 1, Amsterdam" },
+  { name:"Van Gogh Museum", city:"Amsterdam", country:"Netherlands", region:"Europe", lat:52.3584, lng:4.8811, address:"Museumplein 6, Amsterdam" },
+  { name:"State Hermitage Museum", city:"St Petersburg", country:"Russia", region:"Europe", lat:59.9398, lng:30.3146, address:"Palace Square 2, St Petersburg" },
+  { name:"Kunsthistorisches Museum", city:"Vienna", country:"Austria", region:"Europe", lat:48.2035, lng:16.3615, address:"Maria-Theresien-Platz, Vienna" },
+  { name:"Pinakothek der Moderne", city:"Munich", country:"Germany", region:"Europe", lat:48.1470, lng:11.5724, address:"Barer Str. 40, Munich" },
+  { name:"MoMA", city:"New York", country:"United States", region:"Americas", lat:40.7614, lng:-73.9777, address:"11 W 53rd St, New York, NY" },
+  { name:"The Metropolitan Museum of Art", city:"New York", country:"United States", region:"Americas", lat:40.7794, lng:-73.9632, address:"1000 5th Ave, New York, NY" },
+  { name:"Guggenheim Museum New York", city:"New York", country:"United States", region:"Americas", lat:40.7830, lng:-73.9590, address:"1071 5th Ave, New York, NY" },
+  { name:"Whitney Museum", city:"New York", country:"United States", region:"Americas", lat:40.7396, lng:-74.0089, address:"99 Gansevoort St, New York, NY" },
+  { name:"Brooklyn Museum", city:"New York", country:"United States", region:"Americas", lat:40.6712, lng:-73.9636, address:"200 Eastern Pkwy, Brooklyn, NY" },
+  { name:"Art Institute of Chicago", city:"Chicago", country:"United States", region:"Americas", lat:41.8796, lng:-87.6237, address:"111 S Michigan Ave, Chicago, IL" },
+  { name:"Getty Center", city:"Los Angeles", country:"United States", region:"Americas", lat:34.0780, lng:-118.4741, address:"1200 Getty Center Dr, Los Angeles" },
+  { name:"LACMA", city:"Los Angeles", country:"United States", region:"Americas", lat:34.0639, lng:-118.3592, address:"5905 Wilshire Blvd, Los Angeles" },
+  { name:"National Gallery of Art", city:"Washington DC", country:"United States", region:"Americas", lat:38.8913, lng:-77.0199, address:"Constitution Ave NW, Washington DC" },
+  { name:"São Paulo Museum of Art", city:"São Paulo", country:"Brazil", region:"Americas", lat:-23.5613, lng:-46.6558, address:"Av. Paulista 1578, São Paulo" },
+  { name:"Museo Frida Kahlo", city:"Mexico City", country:"Mexico", region:"Americas", lat:19.3554, lng:-99.1627, address:"Londres 247, Coyoacán, Mexico City" },
+  { name:"Tokyo National Museum", city:"Tokyo", country:"Japan", region:"Asia Pacific", lat:35.7187, lng:139.7763, address:"13-9 Uenokoen, Taito, Tokyo" },
+  { name:"teamLab Planets Tokyo", city:"Tokyo", country:"Japan", region:"Asia Pacific", lat:35.6476, lng:139.7952, address:"6-1-16 Toyosu, Koto City, Tokyo" },
+  { name:"Mori Art Museum", city:"Tokyo", country:"Japan", region:"Asia Pacific", lat:35.6604, lng:139.7292, address:"6-10-1 Roppongi, Minato City, Tokyo" },
+  { name:"National Museum of Korea", city:"Seoul", country:"South Korea", region:"Asia Pacific", lat:37.5237, lng:126.9806, address:"137 Seobinggo-ro, Yongsan-gu, Seoul" },
+  { name:"M+ Museum", city:"Hong Kong", country:"China", region:"Asia Pacific", lat:22.3035, lng:114.1597, address:"38 Museum Dr, West Kowloon, Hong Kong" },
+  { name:"National Gallery Singapore", city:"Singapore", country:"Singapore", region:"Asia Pacific", lat:1.2896, lng:103.8513, address:"1 St Andrew's Rd, Singapore" },
+  { name:"Art Gallery of New South Wales", city:"Sydney", country:"Australia", region:"Asia Pacific", lat:-33.8688, lng:151.2170, address:"Art Gallery Rd, The Domain, Sydney" },
+  { name:"National Gallery of Victoria", city:"Melbourne", country:"Australia", region:"Asia Pacific", lat:-37.8225, lng:144.9690, address:"180 St Kilda Rd, Melbourne" },
+  { name:"Louvre Abu Dhabi", city:"Abu Dhabi", country:"UAE", region:"Middle East", lat:24.5338, lng:54.3981, address:"Saadiyat Cultural District, Abu Dhabi" },
+  { name:"Museum of Islamic Art", city:"Doha", country:"Qatar", region:"Middle East", lat:25.2948, lng:51.5378, address:"Al Corniche St, Doha" },
+  { name:"Istanbul Modern", city:"Istanbul", country:"Turkey", region:"Middle East", lat:41.0290, lng:28.9845, address:"Meclis-i Mebusan Cd, Beyoglu, Istanbul" },
+  { name:"Tel Aviv Museum of Art", city:"Tel Aviv", country:"Israel", region:"Middle East", lat:32.0792, lng:34.7876, address:"27 Shaul HaMelech Blvd, Tel Aviv" },
+  { name:"Zeitz MOCAA", city:"Cape Town", country:"South Africa", region:"Africa", lat:-33.9066, lng:18.4215, address:"V&A Waterfront, Cape Town" },
+  { name:"Egyptian Museum Cairo", city:"Cairo", country:"Egypt", region:"Africa", lat:30.0478, lng:31.2336, address:"Tahrir Square, Cairo" },
+];
+
+const regionColors = {
+  'India': '#C4622D',
+  'Europe': '#3060C0',
+  'Americas': '#3A7A20',
+  'Asia Pacific': '#A06010',
+  'Middle East': '#7040B0',
+  'Africa': '#207050',
+};
+
+const regionClass = {
+  'India': 'badge-india',
+  'Europe': 'badge-europe',
+  'Americas': 'badge-americas',
+  'Asia Pacific': 'badge-asia',
+  'Middle East': 'badge-middleeast',
+  'Africa': 'badge-africa',
+};
+
+let map, markers = [], activeFilter = 'all', activeGallery = null, userMarker = null, routeLine = null, travelMode = 'driving';
+
+function initMap() {
+  map = L.map('map', { zoomControl: true }).setView([20, 20], 2);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © Carto',
+    maxZoom: 19
+  }).addTo(map);
+
+  galleries.forEach((g, i) => {
+    const color = regionColors[g.region] || '#888';
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:12px;height:12px;background:${color};border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.3);cursor:pointer;transition:transform 0.15s"></div>`,
+      iconSize: [12, 12],
+      iconAnchor: [6, 6],
+    });
+    const marker = L.marker([g.lat, g.lng], { icon }).addTo(map);
+    marker.on('click', () => selectGallery(i));
+    markers.push(marker);
+  });
+
+  renderList(galleries);
+}
+
+function renderList(list) {
+  const container = document.getElementById('galleryList');
+  document.getElementById('countBadge').textContent = list.length;
+
+  if (list.length === 0) {
+    container.innerHTML = `<div class="no-results"><div class="big">🎨</div>No galleries found</div>`;
+    return;
+  }
+
+  container.innerHTML = list.map((g, i) => {
+    const origIndex = galleries.indexOf(g);
+    return `<div class="gallery-card" id="card-${origIndex}" onclick="selectGallery(${origIndex})">
+      <div class="card-top">
+        <div class="card-name">${g.name}</div>
+        <span class="region-badge ${regionClass[g.region]}">${g.region}</span>
+      </div>
+      <div class="card-city">${g.city}, ${g.country}</div>
+      <div class="card-actions">
+        <button class="btn-directions" onclick="event.stopPropagation();quickDirections(${origIndex})">🧭 Directions</button>
+        <button class="btn-locate" onclick="event.stopPropagation();flyTo(${origIndex})">📍 Locate</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectGallery(i) {
+  const g = galleries[i];
+  activeGallery = i;
+
+  document.querySelectorAll('.gallery-card').forEach(c => c.classList.remove('active'));
+  const card = document.getElementById(`card-${i}`);
+  if (card) { card.classList.add('active'); card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+
+  document.getElementById('detailName').textContent = g.name;
+  document.getElementById('detailCity').textContent = `${g.city}, ${g.country}`;
+  document.getElementById('detailAddress').textContent = g.address;
+  document.getElementById('detailRegion').textContent = g.region;
+
+  document.getElementById('detailPanel').classList.add('visible');
+  document.getElementById('directionsPanel').classList.remove('visible');
+
+  map.flyTo([g.lat, g.lng], 14, { duration: 1.2 });
+
+  const color = regionColors[g.region] || '#888';
+  markers[i].setIcon(L.divIcon({
+    className: '',
+    html: `<div style="width:18px;height:18px;background:${color};border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer"></div>`,
+    iconSize: [18, 18], iconAnchor: [9, 9],
+  }));
+
+  L.popup({ closeButton: true, className: '' })
+    .setLatLng([g.lat, g.lng])
+    .setContent(`<div style="font-family:'DM Sans',sans-serif;padding:4px 2px"><strong style="font-size:13px">${g.name}</strong><br><span style="font-size:11px;color:#888">${g.city}, ${g.country}</span></div>`)
+    .openOn(map);
+}
+
+function flyTo(i) {
+  const g = galleries[i];
+  map.flyTo([g.lat, g.lng], 15, { duration: 1.2 });
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('visible');
+  document.getElementById('directionsPanel').classList.remove('visible');
+  if (activeGallery !== null) resetMarker(activeGallery);
+  activeGallery = null;
+}
+
+function resetMarker(i) {
+  const g = galleries[i];
+  const color = regionColors[g.region] || '#888';
+  markers[i].setIcon(L.divIcon({
+    className: '',
+    html: `<div style="width:12px;height:12px;background:${color};border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.3);cursor:pointer"></div>`,
+    iconSize: [12, 12], iconAnchor: [6, 6],
+  }));
+}
+
+function showDirections() {
+  document.getElementById('directionsPanel').classList.add('visible');
+  getUserLocation();
+}
+
+function quickDirections(i) {
+  selectGallery(i);
+  setTimeout(() => showDirections(), 300);
+}
+
+function closeDirections() {
+  document.getElementById('directionsPanel').classList.remove('visible');
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+}
+
+function setMode(mode, btn) {
+  travelMode = mode;
+  document.querySelectorAll('.dir-mode').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function getUserLocation() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      document.getElementById('fromInput').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      if (userMarker) map.removeLayer(userMarker);
+      userMarker = L.marker([lat, lng], {
+        icon: L.divIcon({ className: '', html: '<div class="user-dot"></div>', iconSize: [14,14], iconAnchor: [7,7] })
+      }).addTo(map);
+    });
+  }
+}
+
+function getDirections() {
+  if (activeGallery === null) return;
+  const g = galleries[activeGallery];
+  const from = document.getElementById('fromInput').value.trim();
+
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+
+  let originParam;
+  if (from.match(/^-?\d+\.?\d*,\s*-?\d+\.?\d*$/)) {
+    const [lat, lng] = from.split(',').map(s => s.trim());
+    originParam = `${lat},${lng}`;
+    drawStraightLine(parseFloat(lat), parseFloat(lng), g.lat, g.lng);
+  } else if (from) {
+    originParam = encodeURIComponent(from);
+    drawStraightLine(null, null, g.lat, g.lng);
+  } else {
+    alert('Please enter your location or allow location access.');
+    return;
+  }
+
+  const modeMap = { driving: 'driving', walking: 'walking', cycling: 'bicycling' };
+  const googleMode = modeMap[travelMode] || 'driving';
+  const dest = encodeURIComponent(`${g.lat},${g.lng}`);
+  window.open(`https://www.google.com/maps/dir/?api=1&origin=${originParam}&destination=${dest}&travelmode=${googleMode}`, '_blank');
+}
+
+function drawStraightLine(fromLat, fromLng, toLat, toLng) {
+  if (fromLat && fromLng) {
+    routeLine = L.polyline([[fromLat, fromLng], [toLat, toLng]], {
+      color: '#C4622D', weight: 3, dashArray: '8, 6', opacity: 0.8
+    }).addTo(map);
+    map.fitBounds(routeLine.getBounds(), { padding: [60, 60] });
+  } else {
+    map.flyTo([toLat, toLng], 13);
+  }
+}
+
+function setFilter(region, btn) {
+  activeFilter = region;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterGalleries();
+}
+
+function filterGalleries() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const filtered = galleries.filter(g => {
+    const matchRegion = activeFilter === 'all' || g.region === activeFilter;
+    const matchSearch = !q || g.name.toLowerCase().includes(q) || g.city.toLowerCase().includes(q) || g.country.toLowerCase().includes(q);
+    return matchRegion && matchSearch;
+  });
+
+  markers.forEach((m, i) => {
+    const g = galleries[i];
+    const matchRegion = activeFilter === 'all' || g.region === activeFilter;
+    const q2 = document.getElementById('searchInput').value.toLowerCase();
+    const matchSearch = !q2 || g.name.toLowerCase().includes(q2) || g.city.toLowerCase().includes(q2) || g.country.toLowerCase().includes(q2);
+    if (matchRegion && matchSearch) {
+      if (!map.hasLayer(m)) m.addTo(map);
+    } else {
+      if (map.hasLayer(m)) map.removeLayer(m);
+    }
+  });
+
+  renderList(filtered);
+}
+
+initMap();
+</script>
+</body>
+</html>
